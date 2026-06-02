@@ -7,7 +7,6 @@
 ---
 
 ## Table of Contents
-Cocaine in cool
 1. [Overview](#1-overview)
 2. [Architecture at a Glance](#2-architecture-at-a-glance)
 3. [Constants Reference](#3-constants-reference)
