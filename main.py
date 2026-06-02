@@ -21,10 +21,10 @@ NUM_SOCKETS     = 12
 FIXED_IN_COUNT  = 8           # sockets 1-8 always IN
 FLEX_START      = 9           # sockets 9-12 are switchable
 
-STAGE_BOX_NAMES = [f"{c}" for c in "ABCDEFGJ"]   # SB-A  SB-G
+STAGE_BOX_NAMES = [f"{c}" for c in "ABCDEFG"]   # SB-A  SB-G
 BOX_CHOICES     = ["---"] + STAGE_BOX_NAMES
 
-OUTPUT_TYPES = ["---", "Aux", "Auto-Tune IN", "Record", "Other"]
+OUTPUT_TYPES = ["---", "Aux", "Auto-Tune IN","IEM", "Record", "Other"]
 
 # ─────────────────────────────────────────────
 #  Data Model
@@ -113,7 +113,7 @@ class PatchData:
         self.rebuild_assigned_from_data()
 
 
-# ─────────────────────────────────────────────
+#─────────────────────────────────────────────
 #  Theme
 # ─────────────────────────────────────────────
 # ── Gruvbox Dark palette ─────────────────────
@@ -121,26 +121,26 @@ BG        = "#282828"   # hard bg
 BG2       = "#32302f"   # soft bg
 BG3       = "#3c3836"   # bg1
 BORDER    = "#504945"   # bg2
-
+ 
 TEXT      = "#ebdbb2"   # fg
 TEXT_DIM  = "#928374"   # grey (gruvbox gray)
-
+ 
 ACCENT    = "#83a598"   # gruvbox aqua/blue
 ACCENT2   = "#fe8019"   # gruvbox orange
-
+ 
 GREEN     = "#b8bb26"   # gruvbox green
 YELLOW    = "#fabd2f"   # gruvbox yellow
 RED       = "#fb4934"   # gruvbox red
 PURPLE    = "#d3869b"   # gruvbox purple
 OUT_CLR   = "#fe8019"   # gruvbox orange (output sockets)
-
+ 
 FT   = ("Courier New", 10)
 FTS  = ("Courier New", 9)
 FTX  = ("Courier New", 8)
 FTB  = ("Courier New", 10, "bold")
 FTH  = ("Courier New", 13, "bold")
 FTTL = ("Courier New", 17, "bold")
-
+ 
 # One distinct Gruvbox colour per box (7 boxes, reuse if more)
 BOX_COLORS = [
     "#83a598",   # aqua
@@ -154,6 +154,7 @@ BOX_COLORS = [
     "#9238db",   # purple
     "#319caf",
 ]
+ 
 
 
 # ─────────────────────────────────────────────
@@ -267,8 +268,8 @@ class App(tk.Tk):
         # column headers
         hrow = tk.Frame(inner, bg=BG2)
         hrow.pack(fill="x", pady=(0,2))
-        for txt, w in [(" CH", 4), ("CHANNEL NAME", 22), ("STAGE BOX", 9),
-                       ("SOCKET", 7), ("DIR", 4), ("LOCATION", 14), ("NOTE", 18)]:
+        for txt, w in [(" CH", 4), ("CHANNEL NAME", 26), ("STAGE BOX", 12),
+                       ("SOCKET", 7), ("DIR", 4), ("LOCATION", 15), ("NOTE", 18)]:
             tk.Label(hrow, text=txt, font=FTS, bg=BG2, fg=TEXT_DIM,
                      width=w, anchor="w").pack(side="left", padx=4, pady=4)
 
@@ -279,15 +280,15 @@ class App(tk.Tk):
     def _make_input_row(self, parent, idx):
         d    = self.data.inputs[idx]
         bg   = BG3 if idx % 2 == 0 else BG2
-        gcol = BOX_COLORS[idx // 8 % len(BOX_COLORS)]
+        gcol = BOX_COLORS[idx // 12 % len(BOX_COLORS)]
 
         frame = tk.Frame(parent, bg=bg)
         frame.pack(fill="x", padx=2, pady=1)
 
         # Channel number badge
-        tk.Label(frame, text=f"{idx+1:02d}", font=FTB,
-                 bg=gcol, fg="#1d2021", width=4, anchor="center").pack(
-                     side="left", padx=(4,5), pady=3, ipady=2)
+        ch_badge = tk.Label(frame, text=f"{idx+1:02d}", font=FTB,
+                 bg=gcol, fg="#1d2021", width=4, anchor="center")
+        ch_badge.pack(side="left", padx=(4,5), pady=3, ipady=2)
 
         # Name
         name_var = tk.StringVar(value=d["name"])
@@ -333,12 +334,13 @@ class App(tk.Tk):
         row = {"name": name_var, "box": box_var, "socket": socket_var,
                "socket_cb": socket_cb, "dir_lbl": dir_lbl,
                "location": location_var, "note": note_var,
-               "frame": frame, "bg": bg}
+               "frame": frame, "bg": bg, "ch_badge": ch_badge}
 
         def _refresh_sockets(*_, r=row, i=idx):
             if self._building or getattr(self, "_updating", False): return # Added _updating check
             self._fill_input_sockets(r)
             self._sync_input_data(r, i)
+            self._update_input_badge_color(r)
 
         def _on_socket(*_, r=row, i=idx):
             if self._building or getattr(self, "_updating", False): return # Added _updating check
@@ -416,6 +418,32 @@ class App(tk.Tk):
         mode = self.data.get_socket_mode(box, int(sv))
         lbl.config(text=mode, fg=GREEN if mode == "IN" else OUT_CLR, bg=bg)
 
+    def _update_input_badge_color(self, row):
+        """Update the channel number badge color to match the assigned sub box color."""
+        badge = row.get("ch_badge")
+        if badge is None:
+            return
+        box = row["box"].get()
+        if box in STAGE_BOX_NAMES:
+            bi  = STAGE_BOX_NAMES.index(box)
+            clr = BOX_COLORS[bi % len(BOX_COLORS)]
+        else:
+            clr = TEXT_DIM   # no box assigned → neutral grey
+        badge.config(bg=clr)
+
+    def _update_output_badge_color(self, row):
+        """Update the output number badge color to match the assigned sub box color."""
+        badge = row.get("ch_badge")
+        if badge is None:
+            return
+        box = row["box"].get()
+        if box in STAGE_BOX_NAMES:
+            bi  = STAGE_BOX_NAMES.index(box)
+            clr = BOX_COLORS[bi % len(BOX_COLORS)]
+        else:
+            clr = ACCENT2   # no box assigned → default orange
+        badge.config(bg=clr)
+
     # ═══════════════════════════════════════════
     #  OUTPUTS TAB
     # ═══════════════════════════════════════════
@@ -450,9 +478,9 @@ class App(tk.Tk):
         frame = tk.Frame(parent, bg=bg)
         frame.pack(fill="x", padx=2, pady=1)
 
-        tk.Label(frame, text=f"{idx+1:02d}", font=FTB,
-                 bg=ACCENT2, fg="#1d2021", width=4, anchor="center").pack(
-                     side="left", padx=(4,5), pady=3, ipady=2)
+        ch_badge = tk.Label(frame, text=f"{idx+1:02d}", font=FTB,
+                 bg=ACCENT2, fg="#1d2021", width=4, anchor="center")
+        ch_badge.pack(side="left", padx=(4,5), pady=3, ipady=2)
 
         name_var = tk.StringVar(value=d["name"])
         tk.Entry(frame, textvariable=name_var, font=FT,
@@ -491,12 +519,13 @@ class App(tk.Tk):
 
         row = {"name": name_var, "type": type_var, "box": box_var,
                "socket": socket_var, "socket_cb": socket_cb,
-               "location": location_var, "note": note_var, "bg": bg}
+               "location": location_var, "note": note_var, "bg": bg, "ch_badge": ch_badge}
 
         def _refresh_sockets(*_, r=row, i=idx):
             if self._building or getattr(self, "_updating", False): return 
             self._fill_output_sockets(r)
             self._sync_output_data(r, i)
+            self._update_output_badge_color(r)
 
         def _on_rest(*_, r=row, i=idx):
             if self._building or getattr(self, "_updating", False): return 
@@ -772,8 +801,15 @@ class App(tk.Tk):
             lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>",
             lambda e: canvas.itemconfig(wid, width=e.width))
-        canvas.bind_all("<MouseWheel>",
-            lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind(
+            "<Enter>",
+            lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind(
+            "<Leave>",
+            lambda e: canvas.unbind_all("<MouseWheel>"))
+
         return outer, canvas, inner
 
     def _scrollframe(self, parent):
@@ -816,6 +852,7 @@ class App(tk.Tk):
                 self._fill_input_sockets(row)
                 row["socket"].set("none" if d["socket"] == 0 else str(d["socket"]))
                 self._update_dir(row, "IN")
+                self._update_input_badge_color(row)
             for i, row in enumerate(self._output_rows):
                 d = self.data.outputs[i]
                 row["name"].set(d["name"])
@@ -825,6 +862,7 @@ class App(tk.Tk):
                 row["note"].set(d["note"])
                 self._fill_output_sockets(row)
                 row["socket"].set("none" if d["socket"] == 0 else str(d["socket"]))
+                self._update_output_badge_color(row)
             self._show_var.set(self.data.show_name)
         finally:
             self._updating = False
